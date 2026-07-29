@@ -84,8 +84,9 @@ public:
         this->loader_handle_to_queue.erase(loader_handle);
     }
 
-    py::object get_dl_tensor(int loader_handle, int tensor_index, size_t size) {
-        int req_id = this->call(loader_handle, GET_TENSOR_PTR, std::make_any<GetTensorArgs>(tensor_index));
+    py::object get_dl_tensor(int loader_handle, int tensor_index, size_t size, size_t consumer_stream) {
+        int req_id = this->call(loader_handle, GET_TENSOR_PTR,
+                                std::make_any<GetTensorArgs>(tensor_index, consumer_stream));
         std::any data_ptr_any = this->get_result(loader_handle, req_id);
         void *data_ptr = std::any_cast<void*>(data_ptr_any);
         vector<int64_t> shape = {(int64_t)size};
@@ -123,11 +124,11 @@ void close(int loader_handle) {
     manager->close(loader_handle);
 }
 
-py::object get_dl_tensor(int loader_handle, int tensor_index, size_t size) {
+py::object get_dl_tensor(int loader_handle, int tensor_index, size_t size, size_t consumer_stream) {
     if(!manager) {
         print_and_throw(std::runtime_error("Internal error: manager is not initialized"));
     }
-    return manager->get_dl_tensor(loader_handle, tensor_index, size);
+    return manager->get_dl_tensor(loader_handle, tensor_index, size, consumer_stream);
 }
 
 // Clean global cuda-related objects before python exit and cudaDeviceReset() is called
@@ -175,7 +176,8 @@ PYBIND11_MODULE(_C, m) {
           "Get a tensor by index from the opened file",
           pybind11::arg("loader_handle"),
           pybind11::arg("tensor_index"),
-          pybind11::arg("size"));
+          pybind11::arg("size"),
+          pybind11::arg("consumer_stream"));
 
     m.def("file_in_memory", &instanttensor::file_in_memory,
           "Check if the file is in memory",

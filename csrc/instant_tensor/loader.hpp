@@ -49,6 +49,10 @@ public:
     std::thread io_depth_sample_thread;
     cudaStream_t cuda_stream = nullptr;
     cudaStream_t nccl_stream = nullptr;
+    // Recorded on the framework's consumer stream before the ring buffer is
+    // allowed to advance. Internal producer streams wait on this event so a
+    // zero-copy tensor remains valid until its async destination copy ends.
+    cudaEvent_t consumer_event = nullptr;
     vector<cudaEvent_t> cuda_events;
     size_t world_chunk_alignment = 0;
     size_t thread_chunk_size = 0;

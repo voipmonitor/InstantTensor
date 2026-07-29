@@ -156,6 +156,9 @@ void Loader::init_threads() {
     if(!this->nccl_stream) {
         CUDA_CHECK(cudaStreamCreateWithFlags(&this->nccl_stream, cudaStreamNonBlocking));
     }
+    if(!this->consumer_event) {
+        CUDA_CHECK(cudaEventCreateWithFlags(&this->consumer_event, cudaEventDisableTiming));
+    }
     if(!this->wait_thread) {
         this->wait_thread = std::make_unique<AsyncExecutor>();
     }
@@ -206,6 +209,11 @@ void Loader::destroy_threads() {
     }
     if (this->nccl_stream) {
         CUDA_CHECK(cudaStreamDestroy(this->nccl_stream));
+        this->nccl_stream = nullptr;
+    }
+    if (this->consumer_event) {
+        CUDA_CHECK(cudaEventDestroy(this->consumer_event));
+        this->consumer_event = nullptr;
     }
     if(this->io_depth_sample_thread.joinable()) {
         this->io_depth_sample_thread.join();
@@ -545,6 +553,22 @@ void* Loader::get_tensor_ptr(GetTensorArgs args) {
     }
     if (index > this->current_tensor_index + 1) {
         fprintf(stderr, "WARNING: index jumped from %zu to %zu\n", this->current_tensor_index, index);
+    }
+
+    // Advancing the ring makes the previously returned zero-copy view
+    // reusable. Record completion after the framework's queued copy, then
+    // make all GPU producer work wait for it. This preserves the original
+    // lifetime guarantee without synchronizing the Python thread per tensor.
+    if (index > this->current_tensor_index && args.consumer_stream != 0) {
+        auto consumer_stream = reinterpret_cast<cudaStream_t>(args.consumer_stream);
+        CUDA_CHECK(cudaEventRecord(this->consumer_event, consumer_stream));
+        if (this->backend == Backend::CUFILE) {
+            // cuFile worker writes are not ordered by either internal stream.
+            CUDA_CHECK(cudaEventSynchronize(this->consumer_event));
+        } else {
+            CUDA_CHECK(cudaStreamWaitEvent(this->cuda_stream, this->consumer_event, 0));
+            CUDA_CHECK(cudaStreamWaitEvent(this->nccl_stream, this->consumer_event, 0));
+        }
     }
     this->current_tensor_index = index;
 

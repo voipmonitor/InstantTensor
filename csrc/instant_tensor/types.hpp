@@ -66,7 +66,9 @@ struct CloseArgs {
 
 struct GetTensorArgs {
     size_t tensor_index;
-    GetTensorArgs(size_t tensor_index) : tensor_index(tensor_index) {}
+    size_t consumer_stream;
+    GetTensorArgs(size_t tensor_index, size_t consumer_stream)
+        : tensor_index(tensor_index), consumer_stream(consumer_stream) {}
 };
 
 struct FreeTensorArgs {

@@ -49,6 +49,7 @@ inline cudaError_t (*cudaStreamCreateWithFlags_fn)(cudaStream_t* pStream, unsign
 inline cudaError_t (*cudaStreamDestroy_fn)(cudaStream_t stream) = nullptr;
 inline cudaError_t (*cudaMemcpyAsync_fn)(void* dst, const void* src, size_t count, cudaMemcpyKind kind, cudaStream_t stream) = nullptr;
 inline cudaError_t (*cudaEventCreateWithFlags_fn)(cudaEvent_t* event, unsigned int flags) = nullptr;
+inline cudaError_t (*cudaEventDestroy_fn)(cudaEvent_t event) = nullptr;
 inline cudaError_t (*cudaEventRecord_fn)(cudaEvent_t event, cudaStream_t stream) = nullptr;
 inline cudaError_t (*cudaEventSynchronize_fn)(cudaEvent_t event) = nullptr;
 inline cudaError_t (*cudaStreamWaitEvent_fn)(cudaStream_t stream, cudaEvent_t event, unsigned int flags) = nullptr;
@@ -90,6 +91,7 @@ inline bool init() {
     cudaStreamDestroy_fn = resolve<decltype(cudaStreamDestroy_fn)>(lib_handle, {"cudaStreamDestroy", "hipStreamDestroy"});
     cudaMemcpyAsync_fn = resolve<decltype(cudaMemcpyAsync_fn)>(lib_handle, {"cudaMemcpyAsync", "hipMemcpyAsync"});
     cudaEventCreateWithFlags_fn = resolve<decltype(cudaEventCreateWithFlags_fn)>(lib_handle, {"cudaEventCreateWithFlags", "hipEventCreateWithFlags"});
+    cudaEventDestroy_fn = resolve<decltype(cudaEventDestroy_fn)>(lib_handle, {"cudaEventDestroy", "hipEventDestroy"});
     cudaEventRecord_fn = resolve<decltype(cudaEventRecord_fn)>(lib_handle, {"cudaEventRecord", "hipEventRecord"});
     cudaEventSynchronize_fn = resolve<decltype(cudaEventSynchronize_fn)>(lib_handle, {"cudaEventSynchronize", "hipEventSynchronize"});
     cudaStreamWaitEvent_fn = resolve<decltype(cudaStreamWaitEvent_fn)>(lib_handle, {"cudaStreamWaitEvent", "hipStreamWaitEvent"});
@@ -121,6 +123,9 @@ inline cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, cud
 }
 inline cudaError_t cudaEventCreateWithFlags(cudaEvent_t* event, unsigned int flags) {
     return cudaEventCreateWithFlags_fn(event, flags);
+}
+inline cudaError_t cudaEventDestroy(cudaEvent_t event) {
+    return cudaEventDestroy_fn(event);
 }
 inline cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream = 0) {
     return cudaEventRecord_fn(event, stream);

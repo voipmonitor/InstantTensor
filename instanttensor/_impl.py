@@ -708,9 +708,9 @@ class safe_open:
         own their memory; with ``copy=False`` they are zero-copy views into
         the ring buffer (see ``safe_open``).
 
-        Note:
-            Synchronizes the current CUDA stream to ensure data transfer
-            completion.
+        The loader records a CUDA event on the current consumer stream before
+        advancing its ring buffer, so queued copies complete without a
+        per-tensor host synchronization.
         """
         if self._invalidated:
             raise RuntimeError("tensors() called after safe_open context exited")
@@ -719,7 +719,6 @@ class safe_open:
         self.iterated = True
         for tensor_index, (name, metadata) in enumerate(self.ordered_tensor_metadatas):
             stream = torch.cuda.current_stream()
-            stream.synchronize()
             shape = metadata["shape"]
             safetensors_dtype = metadata["dtype"]
             torch_dtype = safetensors_to_torch_dtype.get(safetensors_dtype, None)
@@ -727,7 +726,9 @@ class safe_open:
                 raise ValueError(f"Unsupported safetensors dtype: {safetensors_dtype}")
 
             tensor_size = get_tensor_size(shape, torch_dtype)
-            dl_tensor = instanttensor._C.get_dl_tensor(self.loader_handle, tensor_index, tensor_size) # always returns int8 tensor
+            dl_tensor = instanttensor._C.get_dl_tensor(
+                self.loader_handle, tensor_index, tensor_size,
+                stream.cuda_stream)  # always returns int8 tensor
             tensor_int8 = torch.from_dlpack(dl_tensor)
             tensor = tensor_int8.view(torch_dtype).view(torch.Size(shape))
 
