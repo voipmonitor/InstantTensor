@@ -131,3 +131,34 @@ def test_copy_true_correct_with_small_ring_buffer(ring_buffer_safetensors):
             collected = list(f.tensors())
     for name, tensor in collected:
         torch.testing.assert_close(tensor.cpu(), expected[name])
+
+
+def test_copy_false_waits_for_async_consumer_stream(ring_buffer_safetensors):
+    """Ring-buffer reuse must wait for a queued destination copy.
+
+    The artificial device sleep makes the caller advance the iterator while
+    its copy is still pending. Without the consumer-stream event, a producer
+    can overwrite the zero-copy source view before the copy reads it.
+    """
+    path, expected = ring_buffer_safetensors
+    consumer = torch.cuda.Stream()
+    collected = {}
+
+    with torch.cuda.stream(consumer):
+        with safe_open(
+            path,
+            framework="pt",
+            device=0,
+            copy=False,
+            buffer_size=8 * 1024 * 1024,
+        ) as f:
+            for name, source in f.tensors():
+                destination = torch.empty_like(source)
+                torch.cuda._sleep(5_000_000)
+                destination.copy_(source)
+                collected[name] = destination
+
+    consumer.synchronize()
+    assert collected.keys() == expected.keys()
+    for name, tensor in collected.items():
+        torch.testing.assert_close(tensor.cpu(), expected[name])
